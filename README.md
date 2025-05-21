@@ -274,11 +274,11 @@ python producer_suhu.py
 ```sh
 python producer_kelembaban.py
 ```
-<img src="./image/suhu.png"
-<img src="./image/lembab.png"
+<img src="./image/suhu.png">
+<img src="./image/lembab.png">
 
 4. Run Spark Consumer
 ```sh
 python pyspark_consumer.py
 ```
-<img src="./image/consumer.png"
+<img src="./image/consumer.png">

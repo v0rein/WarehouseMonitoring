@@ -11,38 +11,55 @@ Sebuah perusahaan logistik mengelola beberapa gudang penyimpanan yang menyimpan 
 
 Sensor akan mengirimkan data setiap detik. Perusahaan ingin memantau kondisi gudang secara real-time untuk mencegah kerusakan barang akibat suhu terlalu tinggi atau kelembaban berlebih.
 
-## Arsitektur & Aliran Data
+Berikut adalah parafrase dari bagian **Arsitektur & Aliran Data**:
+
+---
+
+## Arsitektur & Alur Data
 
 **`producer_suhu.py` & `producer_kelembaban.py`:**
 
-* Bertanggung jawab untuk menghasilkan data sensor untuk suhu dan kelembapan.
-* Data diformat dalam JSON.
-* Data dikirim melalui Kafka ke dua topik berbeda: `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
+* Berfungsi sebagai penghasil data sensor suhu dan kelembapan.
+* Data disusun dalam format JSON.
+* Data dikirimkan melalui Kafka ke dua topik yang berbeda: `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
 
 **Kafka:**
 
-* Bertindak sebagai perantara pesan yang menerima data dari skrip produsen.
-* Memisahkan aliran data suhu dan kelembapan ke dalam topik masing-masing.
+* Berperan sebagai sistem perantara pesan yang menerima data dari produsen.
+* Mengelola aliran data dengan memisahkannya ke dalam topik khusus untuk suhu dan kelembapan.
 
-**pyspark_consumer.py` (PySpark):**
+**`pyspark_consumer.py` (PySpark):**
 
-* Aplikasi PySpark yang bertindak sebagai konsumen untuk topik Kafka `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
-* **Pemrosesan Suhu:**
-* Membaca data suhu dari topik `sensor-suhu-gudang`. * Mengurai data JSON untuk mendapatkan nilai suhu dan informasi terkait (misalnya, ID gudang, stempel waktu).
-* Menambahkan tanda air untuk menangani data yang datang terlambat.
-* Menerapkan windowing (misalnya, jendela tumbling) untuk mengelompokkan data suhu dalam interval waktu tertentu.
-* **Pemrosesan Kelembapan:**
-* Membaca data kelembapan dari topik `sensor-kelembaban-gudang`.
-* Mengurai data JSON untuk mendapatkan nilai kelembapan dan informasi terkait.
-* Menambahkan tanda air untuk menangani data yang terlambat.
-* Menerapkan windowing dengan durasi yang sama dengan windowing pada data suhu.
-* **Gabungan `full_outer`:**
-* Menggabungkan data suhu dan kelembapan yang diproses berdasarkan ID gudang dan jendela waktu.
-* Menggunakan gabungan `full_outer` memastikan bahwa semua data suhu dan kelembapan dalam jendela yang sama dipertimbangkan, meskipun satu jenis sensor mungkin tidak mengirim data dalam interval waktu tertentu. * **Penentuan Status:**
-* Setelah data suhu dan kelembapan berhasil digabungkan untuk setiap gudang dan jendela, logika bisnis diterapkan untuk menentukan `Status`.
-* Kondisi penentuan status dapat melibatkan rentang nilai suhu dan kelembapan yang dianggap ideal, terlalu tinggi, atau terlalu rendah.
-* **Keluaran ke Konsol:**
-* Hasil akhir yang berisi informasi gudang, jendela waktu, suhu, kelembapan, dan `Status` ditampilkan ke konsol secara berkala (setiap 5 detik dalam kasus ini).
+* Merupakan aplikasi PySpark yang menjadi konsumen data dari topik Kafka `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
+
+* **Pemrosesan Data Suhu:**
+
+  * Mengambil data dari topik `sensor-suhu-gudang`.
+  * Mengekstrak informasi seperti suhu, ID gudang, dan stempel waktu dari data JSON.
+  * Menambahkan *watermark* untuk menangani data yang terlambat.
+  * Menerapkan teknik *windowing* (misalnya, tumbling window) untuk mengelompokkan data dalam periode waktu tertentu.
+
+* **Pemrosesan Data Kelembapan:**
+
+  * Mengambil data dari topik `sensor-kelembaban-gudang`.
+  * Mengekstrak nilai kelembapan dan informasi tambahan dari JSON.
+  * Menambahkan *watermark* untuk mengantisipasi keterlambatan data.
+  * Menerapkan windowing dengan periode waktu yang serupa dengan pemrosesan suhu.
+
+* **Penggabungan `full_outer`:**
+
+  * Menggabungkan hasil pemrosesan suhu dan kelembapan berdasarkan ID gudang dan jendela waktu.
+  * Menggunakan gabungan `full_outer` agar data tetap digabung meskipun hanya satu jenis sensor yang mengirim data dalam jangka waktu tertentu.
+
+* **Penentuan Status:**
+
+  * Setelah penggabungan, logika bisnis digunakan untuk menentukan status kondisi gudang.
+  * Penilaian status didasarkan pada apakah suhu dan kelembapan berada dalam kisaran ideal, terlalu tinggi, atau terlalu rendah.
+
+* **Output ke Konsol:**
+
+  * Informasi hasil akhir berupa ID gudang, waktu jendela, nilai suhu dan kelembapan, serta statusnya akan ditampilkan ke konsol secara berkala (setiap 5 detik).
+
 
 ## Fungsi Utama
 ### 1. `docker-compose.yml`
@@ -141,3 +158,127 @@ Aplikasi PySpark ini berfungsi sebagai consumer dan pemroses data:
     - Menerapkan logika kondisional (when) untuk menentukan status gudang (Aman, Suhu tinggi, kelembaban normal, Kelembaban tinggi, suhu aman, Bahaya tinggi! Barang berisiko rusak) berdasarkan nilai suhu dan kelembaban.
 - **Output**:
     - Menulis hasil (Gudang, Suhu, Kelembaban, Status, window) ke konsol setiap 5 detik dalam mode append.
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import (
+    from_json, col, expr, window, when, lit, coalesce
+)
+from pyspark.sql.types import StructType, StringType, IntegerType
+
+spark = SparkSession.builder \
+    .appName("MonitoringGudang") \
+    .config(
+        "spark.jars.packages",
+        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5"
+    ) \
+    .getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+schema_suhu = StructType().add("gudang_id", StringType()).add("suhu", IntegerType())
+schema_kelembaban = StructType().add("gudang_id", StringType()
+                                     ).add("kelembaban", IntegerType())
+
+suhu_df = (
+    spark.readStream
+         .format("kafka")
+         .option("kafka.bootstrap.servers", "localhost:29092")
+         .option("subscribe", "sensor-suhu-gudang")
+         .load()
+)
+
+suhu_stream = (
+    suhu_df
+    .selectExpr("CAST(value AS STRING) AS json")
+    .select(from_json("json", schema_suhu).alias("d"))
+    .select("d.gudang_id", "d.suhu", expr("current_timestamp() AS ts"))
+    .withWatermark("ts", "15 seconds")
+    .select("gudang_id", "suhu", window("ts", "10 seconds").alias("window"))
+)
+
+kelembaban_df = (
+    spark.readStream
+         .format("kafka")
+         .option("kafka.bootstrap.servers", "localhost:29092")
+         .option("subscribe", "sensor-kelembaban-gudang")
+         .load()
+)
+
+kelembaban_stream = (
+    kelembaban_df
+    .selectExpr("CAST(value AS STRING) AS json")
+    .select(from_json("json", schema_kelembaban).alias("d"))
+    .select("d.gudang_id", "d.kelembaban", expr("current_timestamp() AS ts"))
+    .withWatermark("ts", "15 seconds")
+    .select("gudang_id", "kelembaban", window("ts", "10 seconds").alias("window"))
+)
+
+report_stream = suhu_stream.join(
+    kelembaban_stream,
+    on=["gudang_id", "window"],
+    how="full_outer"
+)
+
+kombinasi suhu & kelembaban
+status_stream = report_stream.select(
+    col("gudang_id").alias("Gudang"),
+    coalesce(col("suhu"), lit(0)).alias("Suhu"),
+    coalesce(col("kelembaban"), lit(0)).alias("Kelembaban"),
+    when(
+        (col("Suhu") > 80) & (col("Kelembaban") > 70),
+        lit("Bahaya tinggi! Barang berisiko rusak")
+    ).when(
+        (col("Suhu") > 80) & (col("Kelembaban") <= 70),
+        lit("Suhu tinggi, kelembaban normal")
+    ).when(
+        (col("Suhu") <= 80) & (col("Kelembaban") > 70),
+        lit("Kelembaban tinggi, suhu aman")
+    ).otherwise(
+        lit("Aman")
+    ).alias("Status"),
+    "window"
+)
+
+query = status_stream.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .option("truncate", False) \
+    .trigger(processingTime="5 seconds") \
+    .start()
+
+query.awaitTermination()
+```
+
+## How to Run
+1. Start Kafka Services
+```sh
+docker-compose up -d
+```
+<img src="./image/start.png">
+
+2. Enter Kafka terminal to make topics
+```bash
+kafka-topics --create --topic sensor-suhu-gudang --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+kafka-topics --create --topic sensor-kelembaban-gudang --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+```
+Then make sure that it's running
+```bash
+kafka-topics --list --bootstrap-server localhost:9092
+```
+<img src="./image/topics.png">
+
+3. Run the Kafka Producers
+```sh
+python producer_suhu.py
+```
+```sh
+python producer_kelembaban.py
+```
+<img src="./image/suhu.png"
+<img src="./image/lembab.png"
+
+4. Run Spark Consumer
+```sh
+python pyspark_consumer.py
+```
+<img src="./image/consumer.png"

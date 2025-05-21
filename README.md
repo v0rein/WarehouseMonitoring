@@ -11,10 +11,6 @@ Sebuah perusahaan logistik mengelola beberapa gudang penyimpanan yang menyimpan 
 
 Sensor akan mengirimkan data setiap detik. Perusahaan ingin memantau kondisi gudang secara real-time untuk mencegah kerusakan barang akibat suhu terlalu tinggi atau kelembaban berlebih.
 
-Berikut adalah parafrase dari bagian **Arsitektur & Aliran Data**:
-
----
-
 ## Arsitektur & Alur Data
 
 **`producer_suhu.py` & `producer_kelembaban.py`:**

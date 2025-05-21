@@ -2,7 +2,7 @@
 
 This project demonstrates a real-time data processing pipeline using Kafka and PySpark. It simulates sensor data (temperature and humidity) from multiple warehouses, processes this data, and provides a status report for each warehouse.
 
-## Latar Belakang Masalah
+## Problem Overview
 Sebuah perusahaan logistik mengelola beberapa gudang penyimpanan yang menyimpan barang sensitif seperti makanan, obat-obatan, dan elektronik. Untuk menjaga kualitas penyimpanan, gudang-gudang tersebut dilengkapi dengan dua jenis sensor:
 
 - Sensor Suhu
@@ -11,105 +11,133 @@ Sebuah perusahaan logistik mengelola beberapa gudang penyimpanan yang menyimpan 
 
 Sensor akan mengirimkan data setiap detik. Perusahaan ingin memantau kondisi gudang secara real-time untuk mencegah kerusakan barang akibat suhu terlalu tinggi atau kelembaban berlebih.
 
-## Architecture & Data Flow
+## Arsitektur & Aliran Data
 
 **`producer_suhu.py` & `producer_kelembaban.py`:**
 
-*   Responsible for generating sensor data for temperature and humidity.
-*   Data is formatted in JSON.
-*   Data is sent via Kafka to two different topics: `sensor-suhu-gudang` and `sensor-kelembaban-gudang`.
+* Bertanggung jawab untuk menghasilkan data sensor untuk suhu dan kelembapan.
+* Data diformat dalam JSON.
+* Data dikirim melalui Kafka ke dua topik berbeda: `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
 
 **Kafka:**
 
-*   Acts as a message broker that receives data from the producer scripts.
-*   Separates the temperature and humidity data streams into their respective topics.
+* Bertindak sebagai perantara pesan yang menerima data dari skrip produsen.
+* Memisahkan aliran data suhu dan kelembapan ke dalam topik masing-masing.
 
-**`pyspark_consumer.py` (PySpark):**
+**pyspark_consumer.py` (PySpark):**
 
-*   A PySpark application that acts as a consumer for the Kafka topics `sensor-suhu-gudang` and `sensor-kelembaban-gudang`.
-*   **Temperature Processing:**
-    *   Reads temperature data from the `sensor-suhu-gudang` topic.
-    *   Parses JSON data to get temperature values and related information (e.g., warehouse ID, timestamp).
-    *   Adds a watermark to handle late-arriving data.
-    *   Applies windowing (e.g., tumbling window) to group temperature data within specific time intervals.
-*   **Humidity Processing:**
-    *   Reads humidity data from the `sensor-kelembaban-gudang` topic.
-    *   Parses JSON data to get humidity values and related information.
-    *   Adds a watermark to handle late data.
-    *   Applies windowing with the same duration as the windowing on temperature data.
-*   **`full_outer` join:**
-    *   Joins the processed temperature and humidity data based on warehouse ID and time window.
-    *   Using `full_outer` join ensures that all temperature and humidity data within the same window are considered, even if one type of sensor might not send data in a particular time interval.
-*   **Status Determination:**
-    *   After temperature and humidity data are successfully joined for each warehouse and window, business logic is applied to determine the `Status`.
-    *   Status determination conditions can involve temperature and humidity value ranges considered ideal, too high, or too low.
-*   **Output to Console:**
-    *   The final result containing warehouse information, time window, temperature, humidity, and `Status` is displayed to the console periodically (every 5 seconds in this case).
+* Aplikasi PySpark yang bertindak sebagai konsumen untuk topik Kafka `sensor-suhu-gudang` dan `sensor-kelembaban-gudang`.
+* **Pemrosesan Suhu:**
+* Membaca data suhu dari topik `sensor-suhu-gudang`. * Mengurai data JSON untuk mendapatkan nilai suhu dan informasi terkait (misalnya, ID gudang, stempel waktu).
+* Menambahkan tanda air untuk menangani data yang datang terlambat.
+* Menerapkan windowing (misalnya, jendela tumbling) untuk mengelompokkan data suhu dalam interval waktu tertentu.
+* **Pemrosesan Kelembapan:**
+* Membaca data kelembapan dari topik `sensor-kelembaban-gudang`.
+* Mengurai data JSON untuk mendapatkan nilai kelembapan dan informasi terkait.
+* Menambahkan tanda air untuk menangani data yang terlambat.
+* Menerapkan windowing dengan durasi yang sama dengan windowing pada data suhu.
+* **Gabungan `full_outer`:**
+* Menggabungkan data suhu dan kelembapan yang diproses berdasarkan ID gudang dan jendela waktu.
+* Menggunakan gabungan `full_outer` memastikan bahwa semua data suhu dan kelembapan dalam jendela yang sama dipertimbangkan, meskipun satu jenis sensor mungkin tidak mengirim data dalam interval waktu tertentu. * **Penentuan Status:**
+* Setelah data suhu dan kelembapan berhasil digabungkan untuk setiap gudang dan jendela, logika bisnis diterapkan untuk menentukan `Status`.
+* Kondisi penentuan status dapat melibatkan rentang nilai suhu dan kelembapan yang dianggap ideal, terlalu tinggi, atau terlalu rendah.
+* **Keluaran ke Konsol:**
+* Hasil akhir yang berisi informasi gudang, jendela waktu, suhu, kelembapan, dan `Status` ditampilkan ke konsol secara berkala (setiap 5 detik dalam kasus ini).
 
-## Project Structure
+## Fungsi Utama
+### 1. `docker-compose.yml`
+File ini mendefinisikan dan mengkonfigurasi layanan yang dibutuhkan untuk menjalankan aplikasi:
 
--   [`docker-compose.yml`](d:\SEMESTER 4\Big Data dan Data Lakehouse\Kafka\docker-compose.yml): Defines the Kafka, Zookeeper, and Kafka-UI services.
--   [`producer_suhu.py`](d:\SEMESTER 4\Big Data dan Data Lakehouse\Kafka\producer_suhu.py): A Python script that produces random temperature data to a Kafka topic (`sensor-suhu-gudang`).
--   [`producer_kelembaban.py`](d:\SEMESTER 4\Big Data dan Data Lakehouse\Kafka\producer_kelembaban.py): A Python script that produces random humidity data to a Kafka topic (`sensor-kelembaban-gudang`).
--   [`pyspark_consumer.py`](d:\SEMESTER 4\Big Data dan Data Lakehouse\Kafka\pyspark_consumer.py): A PySpark application that consumes data from the Kafka topics, joins the temperature and humidity streams, determines the status of each warehouse, and prints the results to the console.
+- `zookeeper`: Menggunakan image `confluentinc/cp-zookeeper:7.4.0`. Zookeeper bertanggung jawab untuk manajemen konfigurasi dan sinkronisasi dalam cluster Kafka.
 
-## Prerequisites
+- kafka: Menggunakan image `confluentinc/cp-kafka:7.4.0`. Ini adalah broker pesan utama yang menerima, menyimpan, dan mengirimkan aliran data sensor. Konfigurasi `KAFKA_ADVERTISED_LISTENERS` memungkinkan koneksi ke Kafka baik dari dalam jaringan Docker (kafka:9092) maupun dari host (localhost:29092). Topik akan dibuat secara otomatis (`KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"`).
 
--   Docker and Docker Compose
--   Python 3
--   Apache Spark (ensure PySpark is configured in your environment)
--   Kafka Python library (`pip install kafka-python`)
+- kafka-ui: Menggunakan image `provectuslabs/kafka-ui:latest`. Menyediakan antarmuka pengguna berbasis web untuk memantau dan mengelola cluster Kafka, yang dapat diakses di `http://localhost:8080`.
 
-## How to Run
+### 2. `producer_suhu.py`
+Skrip Python ini bertindak sebagai producer untuk data suhu:
 
-1.  **Start Kafka Services:**
-    Open a terminal in the project root directory and run:
-    ````sh
-    docker-compose up -d
-    ````
-    This will start Zookeeper, Kafka, and Kafka-UI. You can access Kafka-UI at `http://localhost:8080`.
+- Terhubung ke Kafka pada `localhost:29092`.
+- Secara periodik (setiap detik), menghasilkan data suhu acak (antara 70 dan 90) untuk tiga gudang (`G1`, `G2`, `G3`).
+- Mengirimkan data ini dalam format JSON ke topik Kafka `sensor-suhu-gudang`.
+- Mencetak pesan konfirmasi ke konsol setiap kali data dikirim.
+```python
+from kafka import KafkaProducer
+import json
+import time
+import random
 
-2.  **Run the Kafka Producers:**
-    Open two separate terminals.
-    In the first terminal, run the temperature producer:
-    ````sh
-    python producer_suhu.py
-    ````
-    In the second terminal, run the humidity producer:
-    ````sh
-    python producer_kelembaban.py
-    ````
+producer = KafkaProducer(
+    bootstrap_servers='localhost:29092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
-3.  **Run the PySpark Consumer:**
-    Open a new terminal. Ensure your Spark environment is active.
-    Submit the PySpark application:
-    ````sh
-    spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5 pyspark_consumer.py
-    ````
-    The consumer will start processing the data from Kafka and output the status of each warehouse to the console.
+gudang_id = ['G1', 'G2', 'G3']
 
-## Output
 
-The [`pyspark_consumer.py`](d:\SEMESTER 4\Big Data dan Data Lakehouse\Kafka\pyspark_consumer.py) script will print a table to the console every 5 seconds, showing the `Gudang` (Warehouse ID), `Suhu` (Temperature), `Kelembaban` (Humidity), `Status`, and the `window` of time for the aggregation.
+def kirim_suhu():
+    while True:
+        for gid in gudang_id:
+            suhu = random.randint(70, 90)
+            data = {"gudang_id": gid, "suhu": suhu}
+            producer.send('sensor-suhu-gudang', value=data)
+            print(f"[Suhu] Terkirim: {data}")
+        time.sleep(1)
 
-**Example Console Output:**
+
+if __name__ == "__main__":
+    kirim_suhu()
 
 ```
--------------------------------------------
-Batch: ...
--------------------------------------------
-+------+----+----------+------------------------------------+------------------------------------------+
-|Gudang|Suhu|Kelembaban|Status                              |window                                    |
-+------+----+----------+------------------------------------+------------------------------------------+
-|G1    |85  |75        |Bahaya tinggi! Barang berisiko rusak|[2023-10-27 10:00:00, 2023-10-27 10:00:10]|
-|G2    |75  |65        |Aman                                |[2023-10-27 10:00:00, 2023-10-27 10:00:10]|
-|G3    |82  |68        |Suhu tinggi, kelembaban normal      |[2023-10-27 10:00:00, 2023-10-27 10:00:10]|
-...
-+------+----+----------+------------------------------------+------------------------------------------+
+
+### 3. `producer_kelembaban.py`
+Skrip Python ini bertindak sebagai producer untuk data kelembaban:
+
+- Terhubung ke Kafka pada `localhost:29092`.
+- Secara periodik (setiap detik), menghasilkan data kelembaban acak (antara 60 dan 80) untuk tiga gudang (`G1`, `G2`, `G3`).
+- Mengirimkan data ini dalam format JSON ke topik Kafka `sensor-kelembaban-gudang`.
+- Mencetak pesan konfirmasi ke konsol setiap kali data dikirim.
+```python
+from kafka import KafkaProducer
+import json
+import time
+import random
+
+producer = KafkaProducer(
+    bootstrap_servers='localhost:29092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
+
+gudang_id = ['G1', 'G2', 'G3']
+
+def kirim_kelembaban():
+    while True:
+        for gid in gudang_id:
+            kelembaban = random.randint(60, 80)
+            data = {"gudang_id": gid, "kelembaban": kelembaban}
+            producer.send('sensor-kelembaban-gudang', value=data)
+            print(f"[Kelembaban] Terkirim: {data}")
+        time.sleep(1)
+
+if __name__ == "__main__":
+    kirim_kelembaban()
 ```
+4. `pyspark_consumer.py`
+Aplikasi PySpark ini berfungsi sebagai consumer dan pemroses data:
 
-## Stopping the Services
-
-To stop the Kafka services, run:
-````sh
-docker-compose down
+- Membuat SparkSession dengan konfigurasi untuk terhubung ke Kafka.
+- Mendefinisikan skema untuk data suhu (schema_suhu) dan kelembaban (schema_kelembaban).
+- **Membaca Stream Suhu**:
+    - Terhubung ke topik sensor-suhu-gudang di Kafka (localhost:29092).
+    - Mengurai data JSON, menambahkan timestamp, dan menerapkan watermark (15 detik) untuk menangani data yang  terlambat.
+    - Mengelompokkan data suhu ke dalam window waktu 10 detik.
+- **Membaca Stream Kelembaban**:
+    - Terhubung ke topik sensor-kelembaban-gudang di Kafka (localhost:29092).
+    - Melakukan proses serupa seperti pada stream suhu (parsing, timestamp, watermark, windowing).
+- **Menggabungkan Stream**:
+    - Melakukan full_outer join pada stream suhu dan kelembaban berdasarkan gudang_id dan window. Ini memastikan semua data dari kedua sensor dipertimbangkan, bahkan jika salah satu sensor tidak mengirim data pada interval tertentu.
+- **Menentukan Status**:
+    - Menggunakan fungsi coalesce untuk menangani nilai NULL (jika salah satu sensor tidak mengirim data) dengan menggantinya menjadi 0.
+    - Menerapkan logika kondisional (when) untuk menentukan status gudang (Aman, Suhu tinggi, kelembaban normal, Kelembaban tinggi, suhu aman, Bahaya tinggi! Barang berisiko rusak) berdasarkan nilai suhu dan kelembaban.
+- **Output**:
+    - Menulis hasil (Gudang, Suhu, Kelembaban, Status, window) ke konsol setiap 5 detik dalam mode append.
